@@ -87,12 +87,40 @@ Este pipeline oferece uma abordagem didática e estatisticamente rigorosa para c
 
 ---
 
-## Requisitos
+## Requisitos e Instalação
 
-* Python 3.10+
-* scikit-learn
-* pandas
-* numpy
-* seaborn
-* matplotlib
-* statsmodels
+### Pré-requisitos
+
+- Python 3.13 ou superior
+- [UV Package Manager](https://github.com/astral-sh/uv) - Um gerenciador de pacotes Python moderno e rápido
+
+### Instalação
+
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/molotto/iris-ml.git
+   cd iris-ml
+   ```
+
+2. Crie o ambiente virtual e instale as dependências:
+   ```bash
+   uv sync
+   ```
+
+3. Ative o ambiente virtual:
+
+   No Windows:
+   ```bash
+   .venv\Scripts\activate
+   ```
+
+   No Unix/macOS:
+   ```bash
+   source .venv/bin/activate
+   ```
+
+4. Execute o programa:
+   ```bash
+   python -m main
+   ```
+
