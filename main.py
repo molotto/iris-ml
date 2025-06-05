@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, recall_score, f1_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 from scipy.stats import f_oneway
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import pandas as pd
