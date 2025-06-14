@@ -19,6 +19,7 @@ def analisar_modelos_iris(nivel_ruido=0.00):
     # Garantir que a pasta 'resultados' existe
     os.makedirs("resultados/metricas_cross_val", exist_ok=True)
     os.makedirs("resultados/analise_estatistica", exist_ok=True)
+    os.makedirs("resultados/comparacao_ruido", exist_ok=True)
 
     # 1. Carregar os dados
     iris = load_iris()
@@ -82,7 +83,7 @@ def analisar_modelos_iris(nivel_ruido=0.00):
         plt.title(f"Matriz de Confusão - {nome} (Ruído: {nivel_ruido})")
         plt.tight_layout()
         plt.savefig(f"resultados/matriz_confusao_{nome}_ruido_{nivel_ruido}.png")
-        plt.show()
+        plt.close()
 
         # Relatório por classe
         print("Relatório de Classificação por Classe:")
@@ -110,7 +111,7 @@ def analisar_modelos_iris(nivel_ruido=0.00):
 
     plt.tight_layout()
     plt.savefig(f"resultados/grafico_acuracia_modelos_ruido_{nivel_ruido}.png")
-    plt.show()
+    plt.close()
 
     # 9. Exportar métricas gerais e por fold
     df_resultados.to_csv(f"resultados/metricas_cross_val/metricas_iris_modelos_ruido_{nivel_ruido}.csv", index=False)
@@ -142,13 +143,149 @@ def analisar_modelos_iris(nivel_ruido=0.00):
         plt.grid(axis='y')
         plt.tight_layout()
         plt.savefig(f"resultados/analise_estatistica/boxplot_{metrica}_ruido_{nivel_ruido}.png")
-        plt.show()
+        plt.close()
+
+    return df_resultados
+
+def plot_comparacao_ruido(resultados_por_ruido):
+    """
+    Plota gráficos comparativos de como cada modelo se comporta com diferentes níveis de ruído
+    """
+    # Preparar dados para o gráfico
+    modelos = list(resultados_por_ruido[0]['Modelo'])
+    ruidos = [f"{r:.2f}" for r in resultados_por_ruido.keys()]
+    
+    # Criar gráfico para acurácia
+    plt.figure(figsize=(12, 6))
+    for modelo in modelos:
+        acuracias = [resultados_por_ruido[ruido][resultados_por_ruido[ruido]['Modelo'] == modelo]['Acurácia Média'].values[0] 
+                    for ruido in resultados_por_ruido.keys()]
+        plt.plot(ruidos, acuracias, marker='o', label=modelo)
+    
+    plt.title('Comparação da Acurácia dos Modelos em Diferentes Níveis de Ruído')
+    plt.xlabel('Nível de Ruído')
+    plt.ylabel('Acurácia Média')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('resultados/comparacao_ruido/comparacao_acuracia_ruido.png')
+    plt.close()
+
+    # Criar gráfico para F1-Score
+    plt.figure(figsize=(12, 6))
+    for modelo in modelos:
+        f1_scores = [resultados_por_ruido[ruido][resultados_por_ruido[ruido]['Modelo'] == modelo]['F1-Score Média'].values[0] 
+                    for ruido in resultados_por_ruido.keys()]
+        plt.plot(ruidos, f1_scores, marker='o', label=modelo)
+    
+    plt.title('Comparação do F1-Score dos Modelos em Diferentes Níveis de Ruído')
+    plt.xlabel('Nível de Ruído')
+    plt.ylabel('F1-Score Média')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('resultados/comparacao_ruido/comparacao_f1_ruido.png')
+    plt.close()
+
+def analise_estatistica_ruido(resultados_por_ruido):
+    """
+    Realiza análise estatística comparativa entre os modelos em diferentes níveis de ruído
+    """
+    print("\n\n=== Análise Estatística Comparativa ===")
+    
+    # Criar DataFrame com todos os resultados dos folds
+    dados_completos = []
+    for nivel_ruido, df in resultados_por_ruido.items():
+        # Ler o arquivo de folds correspondente
+        df_folds = pd.read_csv(f"resultados/metricas_cross_val/metricas_folds_ruido_{nivel_ruido}.csv")
+        
+        # Adicionar nível de ruído
+        df_folds['Nivel_Ruido'] = nivel_ruido
+        dados_completos.append(df_folds)
+    
+    df_completo = pd.concat(dados_completos, ignore_index=True)
+    
+    # Análise para cada nível de ruído
+    for nivel in resultados_por_ruido.keys():
+        print(f"\n--- Análise para nível de ruído {nivel:.2f} ---")
+        df_nivel = df_completo[df_completo['Nivel_Ruido'] == nivel]
+        
+        # Análise para cada métrica
+        for metrica in ['acuracia', 'recall', 'f1']:
+            print(f"\nANOVA para {metrica.upper()}:")
+            df_metrica = df_nivel[df_nivel['Metrica'] == metrica]
+            
+            # ANOVA
+            grupos = [df_metrica[df_metrica['Modelo'] == modelo]['Valor'] 
+                     for modelo in df_metrica['Modelo'].unique()]
+            f_stat, p_valor = f_oneway(*grupos)
+            print(f"Estatística F: {f_stat:.4f}")
+            print(f"p-valor: {p_valor:.4f}")
+            
+            if p_valor < 0.05:
+                print(f"\nTeste de Tukey para {metrica.upper()}:")
+                tukey = pairwise_tukeyhsd(endog=df_metrica['Valor'], 
+                                        groups=df_metrica['Modelo'], 
+                                        alpha=0.05)
+                print(tukey)
+    
+    # Análise da degradação com o aumento do ruído
+    print("\n--- Análise da Degradação com Aumento do Ruído ---")
+    for modelo in df_completo['Modelo'].unique():
+        print(f"\nModelo: {modelo}")
+        
+        for metrica in ['acuracia', 'recall', 'f1']:
+            df_modelo = df_completo[(df_completo['Modelo'] == modelo) & 
+                                  (df_completo['Metrica'] == metrica)]
+            
+            # Calcular média por nível de ruído
+            medias = df_modelo.groupby('Nivel_Ruido')['Valor'].mean()
+            
+            # Correlação
+            correlacao = np.corrcoef(medias.index, medias.values)[0,1]
+            print(f"\n{metrica.upper()}:")
+            print(f"Correlação com Ruído: {correlacao:.4f}")
+            
+            # Taxa de degradação
+            degradacao = (medias.iloc[0] - medias.iloc[-1]) / medias.iloc[0] * 100
+            print(f"Degradação: {degradacao:.2f}%")
+            
+            # Análise de tendência
+            if correlacao < -0.7:
+                print("Forte tendência negativa com aumento do ruído")
+            elif correlacao < -0.3:
+                print("Tendência negativa moderada com aumento do ruído")
+            elif correlacao > 0.7:
+                print("Forte tendência positiva com aumento do ruído")
+            elif correlacao > 0.3:
+                print("Tendência positiva moderada com aumento do ruído")
+            else:
+                print("Pouca ou nenhuma tendência com aumento do ruído")
 
 # Exemplo de uso com diferentes níveis de ruído
 if __name__ == "__main__":
     # Você pode testar diferentes níveis de ruído
     niveis_ruido = [0.00, 0.10, 0.20, 0.30, 0.40]
     
+    # Dicionário para armazenar resultados de cada nível de ruído
+    resultados_por_ruido = {}
+    
     for nivel in niveis_ruido:
         print(f"\n\n=== Testando com nível de ruído: {nivel} ===")
-        analisar_modelos_iris(nivel_ruido=nivel)
+        resultados_por_ruido[nivel] = analisar_modelos_iris(nivel_ruido=nivel)
+    
+    # Gerar gráficos comparativos
+    plot_comparacao_ruido(resultados_por_ruido)
+    
+    # Realizar análise estatística
+    analise_estatistica_ruido(resultados_por_ruido)
+    
+    # Análise final
+    print("\n\n=== Análise Final ===")
+    print("Esta análise simula diferentes níveis de qualidade de imagem que podem ser encontrados em fotos de celular.")
+    print("Os níveis de ruído representam:")
+    print("0.00 - Imagem perfeita (referência)")
+    print("0.10 - Imagem de boa qualidade")
+    print("0.20 - Imagem de qualidade média")
+    print("0.30 - Imagem de qualidade baixa")
+    print("0.40 - Imagem extremamente ruidosa")
