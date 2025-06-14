@@ -1,2 +1,15 @@
 .vscode
 resultados
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyzwz
+uv.lock
+.env
+.DS_Store
